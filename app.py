@@ -196,7 +196,7 @@ def chat():
             return jsonify({"reply": f"The highest risk profile is Customer {worst['customerId']} with a critical {worst['prob']:.1f}% probability of churn."})
 
     if "high churn" in msg or "high risk" in msg:
-    high_risk = results_df[results_df['prob'] >= 70]
+        high_risk = results_df[results_df['prob'] >= 70]
 
     if high_risk.empty:
         return jsonify({"reply": "No high churn customers found."})
