@@ -176,7 +176,7 @@ def predict_single():
 def chat():
     data = request.json
     msg = data.get('message', '').lower()
-    bank_id = data.get('bankId')
+    bank_id = data.get('bankId', 'B2')
     results_df = analyze_bank_risks(bank_id)
 
     if "count" in msg and ("90" in msg or "high risk" in msg):
@@ -195,6 +195,17 @@ def chat():
             worst = results_df.loc[results_df['prob'].idxmax()]
             return jsonify({"reply": f"The highest risk profile is Customer {worst['customerId']} with a critical {worst['prob']:.1f}% probability of churn."})
 
+    if "high churn" in msg or "high risk" in msg:
+    high_risk = results_df[results_df['prob'] >= 70]
+
+    if high_risk.empty:
+        return jsonify({"reply": "No high churn customers found."})
+
+    customers = high_risk[['customerId', 'prob']].head(5).to_dict('records')
+
+    return jsonify({
+        "reply": f"Here are the top high churn customers:\n{customers}"
+    })
     if GEMINI_AVAILABLE:
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
