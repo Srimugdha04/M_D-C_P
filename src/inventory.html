@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Multi Domain Churn Prediction</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+   <link rel="apple-touch-icon" sizes="180x180" href="./assets/images/favicon_io/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/images/favicon_io/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/images/favicon_io/favicon-16x16.png">
+  <link rel="manifest" href="./assets/images/favicon_io/site.webmanifest">
+  <!-- CSS Dependencies -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+  <link rel="stylesheet" href="./assets/css/styles.css">
+</head>
+
+<body>
+  <div id="overlay" class="overlay"></div>
+  <!-- TOPBAR -->
+  <nav id="topbar" class="navbar bg-white border-bottom fixed-top topbar px-3">
+    <button id="toggleBtn" class="d-none d-lg-inline-flex btn btn-light btn-icon btn-sm ">
+      <i class="ti ti-layout-sidebar-left-expand"></i>
+    </button>
+
+    <!-- MOBILE -->
+    <button id="mobileBtn" class="btn btn-light btn-icon btn-sm d-lg-none me-2">
+      <i class="ti ti-layout-sidebar-left-expand"></i>
+    </button>
+    <div>
+      <!-- Navbar nav -->
+
+    </div>
+
+  </nav>
+
+  <!-- SIDEBAR -->
+  <aside id="sidebar" class="sidebar">
+     <div class="logo-area">
+      <a href="index.html" class="d-inline-flex" style="text-decoration:none;">
+        <span style="font-size:1.4rem; font-weight:800; color:#4F46E5; letter-spacing:0.5px;">
+          <i class="ti ti-chart-arcs" style="font-size:1.6rem; vertical-align:middle; margin-right:4px;"></i>CHURN PREDICTOR
+        </span>
+      </a>
+    </div>
+    <ul class="nav flex-column">
+      <li class="px-4 py-2"><small class="nav-text">Main</small></li>
+      <li><a class="nav-link active" href="index.html"><i class="ti ti-home"></i><span
+            class="nav-text">Dashboard</span></a></li>
+      <li><a class="nav-link" href="inventory.html"><i class="ti ti-box-seam"></i><span
+            class="nav-text">Churn Dashboard</span></a></li>
+      <li><a class="nav-link" href="create-product.html"><i class="ti ti-plus"></i><span class="nav-text">Predict Customer</span></a></li>
+    <li><a class="nav-link" href="reports.html"><i class="ti ti-receipt"></i><span class="nav-text">Analytics</span></a>
+      </li>
+      <li><a class="nav-link" href="docs.html"><i class="ti ti-file-text"></i><span class="nav-text">Docs</span></a></li>
+
+
+    </ul>
+
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main id="content" class="content py-10">
+    <div class="container-fluid">
+      <div class="row">
+        <div class="col-12">
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <div class="">
+              <h1 class="fs-3 mb-1">Churn Data Explorer</h1>
+              <p class="mb-0">Analyze customer risk and churn patterns</p>
+            </div>
+            <div>
+              <input type="file" id="csvFileInput" accept=".csv" style="display:none;" onchange="uploadCSV()">
+              <button class="btn btn-primary" onclick="document.getElementById('csvFileInput').click()"><i class="ti ti-upload"></i> Upload Dataset</button>
+              <script>
+                async function uploadCSV() {
+                  const fileInput = document.getElementById('csvFileInput');
+                  if (!fileInput.files.length) return;
+                  const formData = new FormData();
+                  formData.append('file', fileInput.files[0]);
+                  
+                  const btn = fileInput.nextElementSibling;
+                  const originalText = btn.innerHTML;
+                  btn.innerHTML = '<i class="ti ti-loader ti-spin"></i> Uploading...';
+                  
+                  try {
+                    const response = await fetch('/api/upload_csv', { method: 'POST', body: formData });
+                    const result = await response.json();
+                    if (result.status === 'success') {
+                      // Parse CSV locally to populate localStorage for the UI
+                      const reader = new FileReader();
+                      reader.onload = function(e) {
+                        const text = e.target.result;
+                        const rows = text.trim().split("\\n").map(r => r.split(","));
+                        const header = rows[0].map(h => h.trim().toLowerCase());
+                        const possibleTargets = ["churn", "exited", "attrition"];
+                        let churnIndex = header.findIndex(h => possibleTargets.includes(h));
+                        if (churnIndex === -1) churnIndex = header.length - 1;
+
+                        let rawData = rows.slice(1).filter(row => row.length > 1 && row[0] !== "");
+                        let data = rawData.map((row, i) => {
+                          return {
+                            id: i + 1,
+                            credit: parseFloat(row[header.indexOf("creditscore")] || 0),
+                            age: parseFloat(row[header.indexOf("age")] || 0),
+                            balance: parseFloat(row[header.indexOf("balance")] || 0),
+                            salary: parseFloat(row[header.indexOf("estimatedsalary")] || 0),
+                            churn: parseFloat(row[churnIndex]) === 1 ? 1 : 0
+                          };
+                        });
+                        localStorage.setItem("churnData", JSON.stringify(data));
+                        alert('Dataset uploaded successfully! ' + result.message);
+                        location.reload();
+                      };
+                      reader.readAsText(fileInput.files[0]);
+                    } else {
+                      alert('Error: ' + result.error);
+                    }
+                  } catch (err) {
+                    alert('Upload failed: ' + err);
+                  } finally {
+                    btn.innerHTML = originalText;
+                    fileInput.value = '';
+                  }
+                }
+              </script>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-12">
+          <div>
+            <div class="d-flex gap-2 mb-3 flex-wrap justify-content-between">
+              <input type="text" id="searchInput" class="form-control" placeholder="Search customers..." style="max-width: 250px;">
+              <div class="d-flex gap-2">
+
+                <div class="d-flex align-items-center gap-2">
+                  <i class="ti ti-filter"></i> Filter
+                  <select id="riskFilter" class="form-select form-select-sm" style="width:150px;">
+                    <option value="all">All</option>
+                    <option value="high">High Risk</option>
+                    <option value="medium">Medium Risk</option>
+                    <option value="low">Low Risk</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+  
+            <div class="table-responsive">
+              <table class="table mb-0 table-hover align-middle">
+                
+                <thead class="table-light">
+                  <tr>
+                    <th>Customer ID</th>
+                    <th>Credit Score</th>
+                    <th>Age</th>
+                    <th>Balance</th>
+                    <th>Salary</th>
+                    <th>Churn Probability</th>
+                    <th>Risk Level</th>
+                  </tr>
+                </thead>
+
+                <tbody id="customerTable">
+                  <!-- Data will be injected -->
+                </tbody>
+
+              </table>
+            </div>
+
+            <!-- ✅ CLEAN FOOTER -->
+            <div class="d-flex justify-content-between align-items-center p-3 border-top">
+
+              <div class="text-muted">
+                Showing <strong id="rowCount">15</strong> customers per page
+              </div>
+
+              <div class="d-flex align-items-center gap-2">
+                <label class="mb-0">Page:</label>
+                <select id="pageSelect" class="form-select form-select-sm" style="width: 120px;">
+                  <!-- Options will be injected -->
+                </select>
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+
+
+
+
+
+
+
+
+
+
+
+  <!-- Bootstrap JS -->
+  <script src="./assets/js/main.js" type="module"></script>
+
+
+
+</body>
+
+</html>
