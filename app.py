@@ -5,15 +5,35 @@ import numpy as np
 import joblib
 import os
 
+# ---- Base directory (absolute, works on PythonAnywhere) ----
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Standard column names your app expects
+
+def standardize_columns(df):
+    # Safe explicit mapping to avoid false positives (like customerAge -> customerId)
+    col_map = {}
+    for col in df.columns:
+        cl = col.lower()
+        if cl == 'customerid': col_map[col] = 'customerId'
+        elif cl == 'bankid': col_map[col] = 'bankId'
+        elif cl == 'bankname': col_map[col] = 'bankName'
+        elif cl == 'surname' or cl == 'customername': col_map[col] = 'name'
+        elif cl == 'tenure': col_map[col] = 'tenure'
+        elif cl == 'monthlycharges': col_map[col] = 'monthlyCharges'
+        elif cl == 'balance': col_map[col] = 'balance'
+        elif cl == 'churn' or cl == 'exited': col_map[col] = 'Churn'
+    
+    return df.rename(columns=col_map)
+
 # ---- Paths ----
-SRC_DIR = os.path.join(os.path.dirname(__file__), 'src')
+SRC_DIR = os.path.join(BASE_DIR, 'src')
 
 # ===============================
 # Optional: TensorFlow
 # ===============================
 try:
     import tensorflow as tf
-    model = tf.keras.models.load_model('nndl_churn_model.h5')
+    model = tf.keras.models.load_model(os.path.join(BASE_DIR, 'nndl_churn_model.h5'))
     print("[OK] TensorFlow model loaded.")
     TF_AVAILABLE = True
 except Exception as e:
@@ -41,8 +61,8 @@ CORS(app)
 
 # Load Other Assets
 try:
-    scaler = joblib.load('scaler.pkl')
-    feature_cols = joblib.load('model_features.pkl')
+    scaler = joblib.load(os.path.join(BASE_DIR, 'scaler.pkl'))
+    feature_cols = joblib.load(os.path.join(BASE_DIR, 'model_features.pkl'))
     print("[OK] Scaler and feature columns loaded.")
     SCALER_AVAILABLE = True
 except Exception as e:
@@ -52,7 +72,28 @@ except Exception as e:
     feature_cols = None
     SCALER_AVAILABLE = False
 
-df = pd.read_csv('bank_customers_data.csv')
+CSV_PATH = os.path.join(BASE_DIR, 'bank_customers_data.csv')
+df = pd.read_csv(CSV_PATH)
+
+# Apply standardization
+df = standardize_columns(df)
+
+# Fix required columns
+if 'customerId' not in df.columns:
+    df.rename(columns={'CustomerId': 'customerId'}, inplace=True)
+
+if 'name' not in df.columns:
+    df['name'] = df.get('Surname', 'Unknown')
+
+if 'bankId' not in df.columns:
+    df['bankId'] = 'B1'
+
+if 'balance' not in df.columns:
+    df['balance'] = df.get('Balance', 0)
+
+if 'monthlyCharges' not in df.columns:
+    df['monthlyCharges'] = df['balance']
+
 print(f"[OK] CSV loaded: {len(df)} customers across {df['bankId'].nunique()} banks.")
 
 def analyze_bank_risks(bank_id):
@@ -131,11 +172,35 @@ def upload_csv():
     if not file.filename.endswith('.csv'):
         return jsonify({"error": "Only CSV files are allowed"}), 400
     try:
-        file.save('bank_customers_data.csv')
-        df = pd.read_csv('bank_customers_data.csv')
+        file.save(CSV_PATH)
+        df = pd.read_csv(CSV_PATH)
+
+        df = standardize_columns(df)
+
+        # Same fixes again
+        if 'customerId' not in df.columns:
+            df.rename(columns={'CustomerId': 'customerId'}, inplace=True)
+
+        if 'name' not in df.columns:
+            df['name'] = df.get('Surname', 'Unknown')
+
+        if 'bankId' not in df.columns:
+            df['bankId'] = 'B1'
+
+        if 'balance' not in df.columns:
+            df['balance'] = df.get('Balance', 0)
+
+        if 'monthlyCharges' not in df.columns:
+            df['monthlyCharges'] = df['balance']
+
         return jsonify({"status": "success", "message": f"Loaded {len(df)} customers."})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/download_csv')
+def download_csv():
+    from flask import send_file
+    return send_file(CSV_PATH, as_attachment=True, download_name="bank_customers_data.csv")
 
 @app.route('/api/predict/all/<bank_id>')
 def predict_all(bank_id):
@@ -143,6 +208,41 @@ def predict_all(bank_id):
     if results_df.empty:
         return jsonify([])
     return jsonify(results_df[['customerId', 'prob']].to_dict('records'))
+
+@app.route('/api/add_customer', methods=['POST'])
+def add_customer():
+    global df
+    data = request.json
+    try:
+        user = data.get('user', {})
+        bank_id = user.get('bankId', 'B1')
+        
+        # Default logic for a new row
+        new_row = {
+            'customerId': f"C{len(df)+1:03d}",
+            'bankId': bank_id,
+            'name': data.get('name', f"New_Cust_{len(df)+1}"),
+            'tenure': data.get('tenure', 0),
+            'monthlyCharges': data.get('balance', 0), # assuming balance determines charges
+            'contractType': 'month-to-month',
+            'supportCalls': data.get('complaints', 0),
+            'internetService': 'fiber',
+            'paymentMethod': 'electronic-check',
+            'paperlessBilling': 1,
+            'monthlyDataUsage': data.get('transactions', 0),
+            'customerAge': data.get('age', 30),
+            'numProducts': data.get('products', 1),
+            'bankName': 'Generic Bank',
+            'Churn': 0,
+            'balance': data.get('balance', 0)
+        }
+        
+        row_df = pd.DataFrame([new_row])
+        df = pd.concat([df, row_df], ignore_index=True)
+        df.to_csv(CSV_PATH, index=False)
+        return jsonify({"status": "success", "message": "Customer added successfully!"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/predict/single', methods=['POST'])
 def predict_single():
@@ -219,6 +319,7 @@ def chat():
             return jsonify({"reply": f"AI Connection Error (Please verify your API Key in app.py): {str(e)}"})
 
     return jsonify({"reply": "I am operating in Offline Analytical Mode. (Python 3.6 limits remote cloud access, but local logic is available!)"})
+
 
 if __name__ == '__main__':
     print("\n========================================")
