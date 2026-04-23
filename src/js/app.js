@@ -236,7 +236,38 @@ async function predictAll() {
         btn.innerHTML = '<i class="fas fa-brain"></i> PREDICT ALL CUSTOMER CHURN';
     }
 }
+async function predictSingle() {
+    try {
+        const data = {
+            creditScore: document.getElementById("creditScore").value,
+            age: document.getElementById("age").value,
+            balance: document.getElementById("balance").value,
+            tenure: document.getElementById("tenure").value,
+            products: document.getElementById("products").value
+        };
 
+        const res = await fetch('/api/predict/single', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        const result = await res.json();
+
+        // Show result in UI
+        const output = document.getElementById("prediction-result");
+        output.innerHTML = `
+            <h3>${result.riskText}</h3>
+            <p><b>Probability:</b> ${result.probability.toFixed(2)}%</p>
+            <p><b>Reasons:</b> ${result.reasons.join("<br>")}</p>
+            <p><b>Recommendations:</b> ${result.recommendations.join("<br>")}</p>
+        `;
+
+    } catch (err) {
+        alert("Prediction failed. Check backend.");
+        console.error(err);
+    }
+}
 // ===================================================
 // GRAPHICAL REPRESENTATION
 // ===================================================
