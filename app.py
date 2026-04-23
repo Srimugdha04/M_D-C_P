@@ -276,14 +276,17 @@ def predict_single():
 def chat():
     data = request.json
     msg = data.get('message', '').lower()
+
+    # ✅ FIXED DEFAULT
     bank_id = data.get('bankId', 'B2')
+
     results_df = analyze_bank_risks(bank_id)
 
     if "count" in msg and ("90" in msg or "high risk" in msg):
         count = len(results_df[results_df['prob'] > 90])
         return jsonify({"reply": f"Scanning the ledger... I found {count} customers with a churn risk over 90%."})
 
-    if "hello" in msg or "hi" in msg:
+    if msg.strip() in ["hi", "hello"]:
         return jsonify({"reply": f"Greetings! I am active. We have {len(results_df)} customers loaded for analysis. What metrics shall we look at?"})
         
     if "average" in msg or "mean" in msg:
@@ -295,17 +298,48 @@ def chat():
             worst = results_df.loc[results_df['prob'].idxmax()]
             return jsonify({"reply": f"The highest risk profile is Customer {worst['customerId']} with a critical {worst['prob']:.1f}% probability of churn."})
 
-    if "high churn" in msg or "high risk" in msg:
+    # 🔥 FIXED HIGH CHURN BLOCK
+    if ("high" in msg and "customer" in msg) or "high churn" in msg or "high risk" in msg:
         high_risk = results_df[results_df['prob'] >= 70]
 
-    if high_risk.empty:
-        return jsonify({"reply": "No high churn customers found."})
+        if high_risk.empty:
+            return jsonify({"reply": "No high churn customers found."})
 
-    customers = high_risk[['customerId', 'prob']].head(5).to_dict('records')
+        customers = high_risk[['customerId', 'prob']].head(5).to_dict('records')
+
+        return jsonify({
+            "reply": f"Top high churn customers:\n{customers}"
+        })
+
+    if "strategy" in msg or "reduce churn" in msg or "retention" in msg:
+       high_risk = results_df[results_df['prob'] >= 70]
+
+    if high_risk.empty:
+        return jsonify({"reply": "Churn risk is currently low. Maintain existing engagement strategies."})
 
     return jsonify({
-        "reply": f"Here are the top high churn customers:\n{customers}"
+        "reply": f"""
+🔍 Retention Strategies for High Churn Customers:
+
+    1. 🎯 Personalized Offers  
+       → Provide discounts or loyalty rewards to high-risk customers.
+
+    2. 📞 Proactive Outreach  
+       → Contact customers with high churn probability and understand issues.
+
+    3. 💡 Improve Engagement  
+       → Increase communication via SMS/email about services & benefits.
+
+    4. 🛠 Service Improvement  
+       → Analyze complaints and resolve service gaps.
+
+    5. 🎁 Cross-Selling  
+       → Offer additional products/services to increase dependency.
+
+    📊 High-risk customers detected: {len(high_risk)}
+    """
     })
+    # 🔥 GEMINI (kept last)
     if GEMINI_AVAILABLE:
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
@@ -316,10 +350,9 @@ def chat():
                 ai_reply = result['candidates'][0]['content']['parts'][0]['text']
                 return jsonify({"reply": ai_reply})
         except Exception as e:
-            return jsonify({"reply": f"AI Connection Error (Please verify your API Key in app.py): {str(e)}"})
+            return jsonify({"reply": f"AI Connection Error: {str(e)}"})
 
-    return jsonify({"reply": "I am operating in Offline Analytical Mode. (Python 3.6 limits remote cloud access, but local logic is available!)"})
-
+    return jsonify({"reply": "Ask about high churn customers, average risk, or highest risk customer."})
 
 if __name__ == '__main__':
     print("\n========================================")
