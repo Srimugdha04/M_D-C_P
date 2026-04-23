@@ -50,8 +50,7 @@
       <li><a class="nav-link" href="inventory.html"><i class="ti ti-box-seam"></i><span
             class="nav-text">Churn Dashboard</span></a></li>
       <li><a class="nav-link" href="create-product.html"><i class="ti ti-plus"></i><span class="nav-text">Predict Customer</span></a></li>
-    <li><a class="nav-link" href="reports.html"><i class="ti ti-receipt"></i><span class="nav-text">Analytics</span></a>
-      </li>
+
       <li><a class="nav-link" href="docs.html"><i class="ti ti-file-text"></i><span class="nav-text">Docs</span></a></li>
 
 
@@ -69,61 +68,9 @@
               <h1 class="fs-3 mb-1">Churn Data Explorer</h1>
               <p class="mb-0">Analyze customer risk and churn patterns</p>
             </div>
-            <div>
-              <input type="file" id="csvFileInput" accept=".csv" style="display:none;" onchange="uploadCSV()">
-              <button class="btn btn-primary" onclick="document.getElementById('csvFileInput').click()"><i class="ti ti-upload"></i> Upload Dataset</button>
-              <script>
-                async function uploadCSV() {
-                  const fileInput = document.getElementById('csvFileInput');
-                  if (!fileInput.files.length) return;
-                  const formData = new FormData();
-                  formData.append('file', fileInput.files[0]);
-                  
-                  const btn = fileInput.nextElementSibling;
-                  const originalText = btn.innerHTML;
-                  btn.innerHTML = '<i class="ti ti-loader ti-spin"></i> Uploading...';
-                  
-                  try {
-                    const response = await fetch('/api/upload_csv', { method: 'POST', body: formData });
-                    const result = await response.json();
-                    if (result.status === 'success') {
-                      // Parse CSV locally to populate localStorage for the UI
-                      const reader = new FileReader();
-                      reader.onload = function(e) {
-                        const text = e.target.result;
-                        const rows = text.trim().split("\\n").map(r => r.split(","));
-                        const header = rows[0].map(h => h.trim().toLowerCase());
-                        const possibleTargets = ["churn", "exited", "attrition"];
-                        let churnIndex = header.findIndex(h => possibleTargets.includes(h));
-                        if (churnIndex === -1) churnIndex = header.length - 1;
-
-                        let rawData = rows.slice(1).filter(row => row.length > 1 && row[0] !== "");
-                        let data = rawData.map((row, i) => {
-                          return {
-                            id: i + 1,
-                            credit: parseFloat(row[header.indexOf("creditscore")] || 0),
-                            age: parseFloat(row[header.indexOf("age")] || 0),
-                            balance: parseFloat(row[header.indexOf("balance")] || 0),
-                            salary: parseFloat(row[header.indexOf("estimatedsalary")] || 0),
-                            churn: parseFloat(row[churnIndex]) === 1 ? 1 : 0
-                          };
-                        });
-                        localStorage.setItem("churnData", JSON.stringify(data));
-                        alert('Dataset uploaded successfully! ' + result.message);
-                        location.reload();
-                      };
-                      reader.readAsText(fileInput.files[0]);
-                    } else {
-                      alert('Error: ' + result.error);
-                    }
-                  } catch (err) {
-                    alert('Upload failed: ' + err);
-                  } finally {
-                    btn.innerHTML = originalText;
-                    fileInput.value = '';
-                  }
-                }
-              </script>
+            <div class="d-flex gap-2">
+              <button class="btn btn-outline-secondary" onclick="window.location.href='/api/download_csv'"><i class="ti ti-download"></i> View Old Dataset</button>
+              <button class="btn btn-primary" onclick="window.location.href='add-customer.html'"><i class="ti ti-plus"></i> Add Customer</button>
             </div>
           </div>
         </div>
@@ -195,22 +142,8 @@
 
     </div>
   </main>
-
-
-
-
-
-
-
-
-
-
-
   <!-- Bootstrap JS -->
   <script src="./assets/js/main.js" type="module"></script>
-
-
-
 </body>
 
 </html>
